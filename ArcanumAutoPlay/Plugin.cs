@@ -10,54 +10,55 @@ using Dalamud.IoC;
 using Dalamud.Plugin;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
-namespace ArcanumDrawer;
-
-public class Plugin : IDalamudPlugin
+namespace ArcanumDrawer
 {
-    public string Name => "ArcanumAutoPlay";
 
-    private ClientState ClientState { get; }
-    private ChatGui ChatGui { get; }
-    private CommandManager CommandManager { get; }
-    private PartyList PartyList { get; }
-
-    public Plugin(
-        [RequiredVersion("1.0")] DalamudPluginInterface pluginInterface,
-        ClientState clientState,
-        ChatGui chatGui,
-        CommandManager commandManager,
-        PartyList partyList)
+    public class Plugin : IDalamudPlugin
     {
-        ClientState = clientState;
-        ChatGui = chatGui;
-        CommandManager = commandManager;
-        PartyList = partyList;
+        public string Name => "ArcanumAutoPlay";
 
-        CommandManager.AddHandler("/parcanumautoplay", new CommandInfo(OnCommandArcanumAutoPlay)
+        private ClientState ClientState { get; }
+        private ChatGui ChatGui { get; }
+        private CommandManager CommandManager { get; }
+        private PartyList PartyList { get; }
+
+        public Plugin(
+            [RequiredVersion("0.1")] DalamudPluginInterface pluginInterface,
+            ClientState clientState,
+            ChatGui chatGui,
+            CommandManager commandManager,
+            PartyList partyList)
         {
-            HelpMessage = "Dummy Help Message"
-        });
+            ClientState = clientState;
+            ChatGui = chatGui;
+            CommandManager = commandManager;
+            PartyList = partyList;
 
-        pluginInterface.UiBuilder.Draw += () => { };
-        pluginInterface.UiBuilder.OpenConfigUi += () => { };
-    }
+            CommandManager.AddHandler("/parcanumautoplay", new CommandInfo(OnCommandArcanumAutoPlay)
+            {
+                HelpMessage = "Dummy Help Message"
+            });
 
-    public void Dispose()
-    {
-        CommandManager.RemoveHandler("/parcanumautoplay");
-    }
+            pluginInterface.UiBuilder.Draw += () => { };
+            pluginInterface.UiBuilder.OpenConfigUi += () => { };
+        }
 
-    private enum Arcanum
-    {
-        Balance,
-        Arrow,
-        Spear,
-        Bole,
-        Ewer,
-        Spire
-    }
+        public void Dispose()
+        {
+            CommandManager.RemoveHandler("/parcanumautoplay");
+        }
 
-    private static readonly Dictionary<string, uint> MeleeJobClassWeights = new Dictionary<string, uint>()
+        private enum Arcanum
+        {
+            Balance,
+            Arrow,
+            Spear,
+            Bole,
+            Ewer,
+            Spire
+        }
+
+        private static readonly Dictionary<string, uint> MeleeJobClassWeights = new Dictionary<string, uint>()
     {
         { "GLA", 0 }, { "PLD", 2 },
         { "MRD", 0 }, { "WAR", 2 },
@@ -70,14 +71,14 @@ public class Plugin : IDalamudPlugin
         { "RPR", 4 }
     };
 
-    private static bool IsMeleeArcanum(Arcanum arcanum) => arcanum switch
-    {
-        Arcanum.Balance or Arcanum.Arrow or Arcanum.Spear => true,
-        _ => false
-    };
+        private static bool IsMeleeArcanum(Arcanum arcanum) => arcanum switch
+        {
+            Arcanum.Balance or Arcanum.Arrow or Arcanum.Spear => true,
+            _ => false
+        };
 
 
-    private static readonly Dictionary<string, uint> RangeJobClassWeights = new Dictionary<string, uint>()
+        private static readonly Dictionary<string, uint> RangeJobClassWeights = new Dictionary<string, uint>()
     {
         { "CNJ", 0 }, { "WHM", 2 },
         { "ACN", 1 }, { "SCH", 2 },
@@ -91,26 +92,26 @@ public class Plugin : IDalamudPlugin
         { "RDM", 4 },
     };
 
-    private static bool IsRangeArcanum(Arcanum arcanum) => arcanum switch
-    {
-        Arcanum.Bole or Arcanum.Ewer or Arcanum.Spire => true,
-        _ => false
-    };
-
-    private bool HasArcanumDrew()
-    {
-        foreach (var status in ClientState.LocalPlayer!.StatusList)
+        private static bool IsRangeArcanum(Arcanum arcanum) => arcanum switch
         {
-            if (status.StatusId == 2713) // Status: Clarifying Draw
+            Arcanum.Bole or Arcanum.Ewer or Arcanum.Spire => true,
+            _ => false
+        };
+
+        private bool HasArcanumDrew()
+        {
+            foreach (var status in ClientState.LocalPlayer!.StatusList)
             {
-                return true;
+                if (status.StatusId == 2713) // Status: Clarifying Draw
+                {
+                    return true;
+                }
             }
+
+            return false;
         }
 
-        return false;
-    }
-
-    private static readonly Dictionary<Arcanum, uint> PlayActionId = new Dictionary<Arcanum, uint>()
+        private static readonly Dictionary<Arcanum, uint> PlayActionId = new Dictionary<Arcanum, uint>()
     {
         { Arcanum.Balance, 4401 },
         { Arcanum.Arrow, 4402 },
@@ -120,137 +121,178 @@ public class Plugin : IDalamudPlugin
         { Arcanum.Spire, 4406 }
     };
 
-    private static readonly Random Random = new Random();
-    private static bool _workerThreadOnHold;
+        private static readonly Random Random = new Random();
+        private static bool _workerThreadOnHold;
 
-    private unsafe void ArcanumAutoPlay()
-    {
-        if (_workerThreadOnHold) return;
-        _workerThreadOnHold = true;
-        try
+        private unsafe void ArcanumAutoPlay()
         {
-            var actionManager = ActionManager.Instance();
-            var localPlayer = ClientState.LocalPlayer!.ObjectId;
+            if (_workerThreadOnHold) return;
+            _workerThreadOnHold = true;
 
-            const uint actionIdDraw = 3590;
-            const ActionType actionTypeDraw = ActionType.Spell;
+            //GCDStateManager GcdStateManager_ = new GCDStateManager(ClientState, ChatGui);
+            //var GcdThread = new Thread(GcdStateManager_.MonitorGCDState);
+            //GcdThread.Start();
+            //if (!ClientState.LocalPlayer.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.InCombat))
+            //{
+            //    ChatGui.Print("Not in Combat");
+            //    return;
+            //}
 
-            if (!HasArcanumDrew())
+            try
             {
-                if (actionManager->GetActionStatus(actionTypeDraw, actionIdDraw, localPlayer, 0, 0) != 0)
+                var actionManager = ActionManager.Instance();
+                var localPlayer = ClientState.LocalPlayer!.ObjectId;
+
+                const uint actionIdDraw = 3590;
+                const ActionType actionTypeDraw = ActionType.Spell;
+
+                if (!HasArcanumDrew())
                 {
-                    return;
+                    if (actionManager->GetActionStatus(actionTypeDraw, actionIdDraw, localPlayer, 0, 0) != 0)
+                    {
+                        return;
+                    }
+
+                    var gcd = actionManager->GetRecastTime(ActionType.Spell, 3599);
+                    var gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+
+                    while ((gcd != 0) && (((gcdElapsed <= 1) || (gcd - gcdElapsed <= 1))))
+                    {
+                        Thread.Yield();
+                    }
+
+                    ChatGui.Print("here");
+
+                    if (!actionManager->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId))
+                    {
+                        ChatGui.Print("failed");
+                        return;
+                    }
+
+                    ChatGui.Print("success");
                 }
 
-                var gcd = actionManager->GetRecastTime(ActionType.Spell, 3599);
-                var gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                var arcanum = Arcanum.Balance;
 
-                while ((gcd != 0) && (((gcdElapsed <= 1) || (gcd - gcdElapsed <= 1))))
+                while (!HasArcanumDrew())
+                {
+                    Thread.Sleep(1000);
+                    Thread.Yield();
+                }
+
+                foreach (var status in ClientState.LocalPlayer!.StatusList)
+                {
+                    arcanum = status.StatusId switch
+                    {
+                        913 => Arcanum.Balance,
+                        915 => Arcanum.Arrow,
+                        916 => Arcanum.Spear,
+                        914 => Arcanum.Bole,
+                        917 => Arcanum.Ewer,
+                        918 => Arcanum.Spire,
+                        _ => arcanum
+                    };
+                }
+
+                var target = FindBestCandidate(arcanum);
+                var actionIdPlay = PlayActionId[arcanum];
+                const ActionType actionTypePlay = ActionType.Spell;
+
+                ChatGui.Print($"[Arcanum] {arcanum} -> {target}");
+
+                var gcd2 = actionManager->GetRecastTime(ActionType.Spell, 3599);
+                var gcdElapsed2 = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+
+                while ((gcd2 != 0) && (((gcdElapsed2 <= 1) || (gcd2 - gcdElapsed2 <= 1))))
                 {
                     Thread.Yield();
                 }
 
-                ChatGui.Print("here");
-                
-                if (!actionManager->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId))
+                actionManager->UseAction(actionTypePlay, actionIdPlay, target.ObjectId);
+            }
+            catch (Exception exception)
+            {
+                ChatGui.Print(exception.Message);
+            }
+            finally
+            {
+                _workerThreadOnHold = false;
+            }
+        }
+
+
+        private GameObject FindBestCandidate(Arcanum arcanum)
+        {
+            var candidates = new List<KeyValuePair<PartyMember, uint>>(8);
+
+            foreach (var partyMember in PartyList)
+            {
+                var jobAbbr = partyMember.ClassJob.GameData!.Abbreviation.ToString().ToUpper();
+
+                if (MeleeJobClassWeights.ContainsKey(jobAbbr) && IsMeleeArcanum(arcanum))
                 {
-                    ChatGui.Print("failed");
-                    return;
+                    var rank = MeleeJobClassWeights[jobAbbr];
+                    candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
                 }
-                
-                ChatGui.Print("success");
-            }
 
-            var arcanum = Arcanum.Balance;
-
-            while (!HasArcanumDrew())
-            {
-                Thread.Sleep(1000);
-                Thread.Yield();
-            }
-
-            foreach (var status in ClientState.LocalPlayer!.StatusList)
-            {
-                arcanum = status.StatusId switch
+                if (RangeJobClassWeights.ContainsKey(jobAbbr) && IsRangeArcanum(arcanum))
                 {
-                    913 => Arcanum.Balance,
-                    915 => Arcanum.Arrow,
-                    916 => Arcanum.Spear,
-                    914 => Arcanum.Bole,
-                    917 => Arcanum.Ewer,
-                    918 => Arcanum.Spire,
-                    _ => arcanum
-                };
+                    var rank = RangeJobClassWeights[jobAbbr];
+                    candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
+                }
             }
 
-            var target = FindBestCandidate(arcanum);
-            var actionIdPlay = PlayActionId[arcanum];
-            const ActionType actionTypePlay = ActionType.Spell;
-
-            ChatGui.Print($"[Arcanum] {arcanum} -> {target}");
-
-            var gcd2 = actionManager->GetRecastTime(ActionType.Spell, 3599);
-            var gcdElapsed2 = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
-
-            while ((gcd2 != 0) && (((gcdElapsed2 <= 1) || (gcd2 - gcdElapsed2 <= 1))))
+            if (candidates.Count == 0)
             {
-                Thread.Yield();
+                return ClientState.LocalPlayer!;
             }
 
-            actionManager->UseAction(actionTypePlay, actionIdPlay, target.ObjectId);
+            candidates.Sort((lhs, rhs) => lhs.Value.CompareTo(rhs.Value));
+            candidates.Reverse();
+
+            var bestRank = candidates[0].Value;
+            candidates = candidates.FindAll(candidate => candidate.Value == bestRank);
+
+            var chosenOne = candidates[Random.Next(candidates.Count)].Key;
+
+            return chosenOne.GameObject!;
         }
-        catch (Exception exception)
+
+
+        private void OnCommandArcanumAutoPlay(string command, string args)
         {
-            ChatGui.Print(exception.Message);
-        }
-        finally
-        {
-            _workerThreadOnHold = false;
+            var workerThread = new Thread(ArcanumAutoPlay);
+            workerThread.Start();
         }
     }
 
-
-    private GameObject FindBestCandidate(Arcanum arcanum)
+    public class GCDStateManager
     {
-        var candidates = new List<KeyValuePair<PartyMember, uint>>(8);
 
-        foreach (var partyMember in PartyList)
+        private ClientState ClientState_;
+
+        private ChatGui ChatGui_;
+
+        public enum GCDState { IDLE, POST_ACTION, QUEUE_AVAIL, SAFE };
+
+        private GCDState GcdState_;
+
+        public GCDStateManager(ClientState ClientState, ChatGui chatGui)
         {
-            var jobAbbr = partyMember.ClassJob.GameData!.Abbreviation.ToString().ToUpper();
+            this.ClientState_ = ClientState;
+            this.ChatGui_ = chatGui;
+            this.GcdState_ = GCDState.IDLE;
+        }
 
-            if (MeleeJobClassWeights.ContainsKey(jobAbbr) && IsMeleeArcanum(arcanum))
+        public unsafe void MonitorGCDState()
+        {
+            while (ClientState_.LocalPlayer.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.InCombat))
             {
-                var rank = MeleeJobClassWeights[jobAbbr];
-                candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
-            }
-
-            if (RangeJobClassWeights.ContainsKey(jobAbbr) && IsRangeArcanum(arcanum))
-            {
-                var rank = RangeJobClassWeights[jobAbbr];
-                candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
+                this.ChatGui_.Print("In Combat;");
+                Thread.Sleep(5000);
             }
         }
 
-        if (candidates.Count == 0)
-        {
-            return ClientState.LocalPlayer!;
-        }
-
-        candidates.Sort((lhs, rhs) => lhs.Value.CompareTo(rhs.Value));
-        candidates.Reverse();
-
-        var bestRank = candidates[0].Value;
-        candidates = candidates.FindAll(candidate => candidate.Value == bestRank);
-
-        var chosenOne = candidates[Random.Next(candidates.Count)].Key;
-
-        return chosenOne.GameObject!;
     }
 
-
-    private void OnCommandArcanumAutoPlay(string command, string args)
-    {
-        var workerThread = new Thread(ArcanumAutoPlay);
-        workerThread.Start();
-    }
 }
