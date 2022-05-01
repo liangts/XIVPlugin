@@ -64,7 +64,7 @@ namespace ArcanumDrawer
             Ewer,
             Spire
         }
-        private enum GCDState { IDLE, POST_ACTION, QUEUE_AVAIL, SAFE };
+        private enum GCDState { IDLE, POST_ACTION, QUEUE_AVAIL, SAFE, ERROR };
 
         private static readonly Dictionary<string, uint> MeleeJobClassWeights = new Dictionary<string, uint>()
     {
@@ -136,20 +136,27 @@ namespace ArcanumDrawer
                 if (ActionManager.Instance()->IsRecastTimerActive(ActionType.Spell, 3599)){
                     // Is Casting
                     var GcdRecastTime = ActionManager.Instance()->GetRecastTime(ActionType.Spell, 3599);
+                    if (GcdRecastTime <= 0)
+                    {
+                        this.GcdState_ = GCDState.ERROR;
+                    }
                     var GcdRecastElasped = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
-                    if (GcdRecastTime > 0 && (GcdRecastElasped > GcdRecastTime / 3))
+                    if (GcdRecastElasped > (GcdRecastTime / 3))
                     {
                         this.GcdState_ = GCDState.POST_ACTION;
-                    } else if (GcdRecastTime > 0 && (GcdRecastElasped > GcdRecastTime * 2 / 3)) {
+                    } else if (GcdRecastElasped > (GcdRecastTime * 2 / 3)) {
                         this.GcdState_ = GCDState.QUEUE_AVAIL;
                     }
                     else
                     {
                         this.GcdState_ = GCDState.SAFE;
                     }
-                    
+                    ChatGui.Print("GCD State: " + this.GcdState_.ToString());
+                    continue;
                 }
                 this.GcdState_ = GCDState.IDLE;
+                ChatGui.Print("GCD State: " + this.GcdState_.ToString());
+                Thread.Sleep(150);
             }
             return;
         }
@@ -271,6 +278,7 @@ namespace ArcanumDrawer
 
             }
             ChatGui.Print("[Arcanum] Thread Exit Successfully");
+            GcdCheckRun_ = false;
             return;
         }
 
@@ -319,8 +327,10 @@ namespace ArcanumDrawer
             {
                 ChatGui.Print("Still a thread working");
             }
-            
+            //var GcdCheckThread = new Thread(GcdCheckRun);
             var workerThread = new Thread(ArcanumAutoPlay);
+            //this.GcdCheckRun_ = true;
+            //GcdCheckThread.Start();
             workerThread.Start();
         }
     }
