@@ -8,6 +8,7 @@ using Dalamud.Game.Command;
 using Dalamud.Game.Gui;
 using Dalamud.IoC;
 using Dalamud.Plugin;
+using Dalamud.Logging;
 using FFXIVClientStructs.FFXIV.Client.Game;
 
 namespace ArcanumDrawer
@@ -21,6 +22,9 @@ namespace ArcanumDrawer
         private ChatGui ChatGui { get; }
         private CommandManager CommandManager { get; }
         private PartyList PartyList { get; }
+
+        private List<Thread> ThreadList_ = new List<Thread>();
+
 
         public Plugin(
             [RequiredVersion("0.1")] DalamudPluginInterface pluginInterface,
@@ -98,28 +102,25 @@ namespace ArcanumDrawer
             _ => false
         };
 
-        private bool HasArcanumDrew()
+        private unsafe bool HasArcanumDrew()
         {
-            foreach (var status in ClientState.LocalPlayer!.StatusList)
+            if (JobGaugeManager.Instance()->Astrologian.CurrentCard != FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.None)
             {
-                if (status.StatusId == 2713) // Status: Clarifying Draw
-                {
-                    return true;
-                }
+                return true;
             }
-
             return false;
+
         }
 
         private static readonly Dictionary<Arcanum, uint> PlayActionId = new Dictionary<Arcanum, uint>()
-    {
-        { Arcanum.Balance, 4401 },
-        { Arcanum.Arrow, 4402 },
-        { Arcanum.Spear, 4403 },
-        { Arcanum.Bole, 4404 },
-        { Arcanum.Ewer, 4405 },
-        { Arcanum.Spire, 4406 }
-    };
+        {
+            { Arcanum.Balance, 4401 },
+            { Arcanum.Arrow, 4402 },
+            { Arcanum.Spear, 4403 },
+            { Arcanum.Bole, 4404 },
+            { Arcanum.Ewer, 4405 },
+            { Arcanum.Spire, 4406 }
+        };
 
         private static readonly Random Random = new Random();
         private static bool _workerThreadOnHold;
@@ -128,16 +129,18 @@ namespace ArcanumDrawer
         {
             if (_workerThreadOnHold) return;
             _workerThreadOnHold = true;
-
+            PluginLog.Debug(Name + "Start AutoPlay Thread;");
             //GCDStateManager GcdStateManager_ = new GCDStateManager(ClientState, ChatGui);
             //var GcdThread = new Thread(GcdStateManager_.MonitorGCDState);
             //GcdThread.Start();
-            //if (!ClientState.LocalPlayer.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.InCombat))
-            //{
-            //    ChatGui.Print("Not in Combat");
-            //    return;
-            //}
-
+            ChatGui.Print("A");
+            if (!ClientState.LocalPlayer.StatusFlags.HasFlag(Dalamud.Game.ClientState.Objects.Enums.StatusFlags.InCombat))
+            {
+                ChatGui.Print("Not in Combat");
+                _workerThreadOnHold = false;
+                return;
+            }
+            ChatGui.Print("B");
             try
             {
                 var actionManager = ActionManager.Instance();
@@ -145,41 +148,60 @@ namespace ArcanumDrawer
 
                 const uint actionIdDraw = 3590;
                 const ActionType actionTypeDraw = ActionType.Spell;
-
+                PluginLog.Debug(Name + "Got ActionManager and localPlayer");
                 if (!HasArcanumDrew())
                 {
                     if (actionManager->GetActionStatus(actionTypeDraw, actionIdDraw, localPlayer, 0, 0) != 0)
                     {
                         return;
                     }
-
+                    ChatGui.Print("C");
+                    // Combust ID - 3599
                     var gcd = actionManager->GetRecastTime(ActionType.Spell, 3599);
                     var gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
 
                     while ((gcd != 0) && (((gcdElapsed <= 1) || (gcd - gcdElapsed <= 1))))
                     {
+                        //ChatGui.Print("GCD: " + gcd.ToString() + " Elapsed: " + gcdElapsed.ToString());
+                        gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                        //Thread.Sleep(100);
                         Thread.Yield();
                     }
 
                     ChatGui.Print("here");
-
+                    ChatGui.Print("D");
                     if (!actionManager->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId))
                     {
                         ChatGui.Print("failed");
                         return;
                     }
-
+                    ChatGui.Print("E");
                     ChatGui.Print("success");
                 }
 
                 var arcanum = Arcanum.Balance;
-
+                ChatGui.Print("F");
                 while (!HasArcanumDrew())
                 {
                     Thread.Sleep(1000);
                     Thread.Yield();
                 }
-
+                ChatGui.Print("G");
+                if (JobGaugeManager.Instance()->Astrologian.CurrentCard != FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.None)
+                {
+                    arcanum = JobGaugeManager.Instance()->Astrologian.CurrentCard switch
+                    {
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Balance => Arcanum.Balance,
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Bole => Arcanum.Bole,
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Spear => Arcanum.Spear,
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Spire => Arcanum.Spire,
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Ewer => Arcanum.Ewer,
+                        FFXIVClientStructs.FFXIV.Client.Game.Gauge.AstrologianCard.Arrow => Arcanum.Arrow,
+                        _ => arcanum
+                    };
+                }
+                ChatGui.Print("H");
+                /*
                 foreach (var status in ClientState.LocalPlayer!.StatusList)
                 {
                     arcanum = status.StatusId switch
@@ -193,7 +215,7 @@ namespace ArcanumDrawer
                         _ => arcanum
                     };
                 }
-
+                */
                 var target = FindBestCandidate(arcanum);
                 var actionIdPlay = PlayActionId[arcanum];
                 const ActionType actionTypePlay = ActionType.Spell;
@@ -205,19 +227,24 @@ namespace ArcanumDrawer
 
                 while ((gcd2 != 0) && (((gcdElapsed2 <= 1) || (gcd2 - gcdElapsed2 <= 1))))
                 {
+                    gcdElapsed2 = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
                     Thread.Yield();
                 }
-
+                ChatGui.Print("I");
                 actionManager->UseAction(actionTypePlay, actionIdPlay, target.ObjectId);
+                ChatGui.Print("Z");
             }
             catch (Exception exception)
             {
-                ChatGui.Print(exception.Message);
+                ChatGui.Print(exception.ToString());
             }
             finally
             {
                 _workerThreadOnHold = false;
+
             }
+            ChatGui.Print("[Arcanum] Thread Exit Successfully");
+            return;
         }
 
 
@@ -260,7 +287,12 @@ namespace ArcanumDrawer
 
 
         private void OnCommandArcanumAutoPlay(string command, string args)
-        {
+        {   
+            if (_workerThreadOnHold == true)
+            {
+                ChatGui.Print("Still a thread working");
+            }
+            
             var workerThread = new Thread(ArcanumAutoPlay);
             workerThread.Start();
         }
