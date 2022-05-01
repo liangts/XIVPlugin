@@ -23,8 +23,11 @@ namespace ArcanumDrawer
         private CommandManager CommandManager { get; }
         private PartyList PartyList { get; }
 
-        private List<Thread> ThreadList_ = new List<Thread>();
+        private Thread GcdThread_;
 
+        private bool GcdCheckRun_ = false;
+
+        private GCDState GcdState_ = GCDState.IDLE;
 
         public Plugin(
             [RequiredVersion("0.1")] DalamudPluginInterface pluginInterface,
@@ -61,6 +64,7 @@ namespace ArcanumDrawer
             Ewer,
             Spire
         }
+        private enum GCDState { IDLE, POST_ACTION, QUEUE_AVAIL, SAFE };
 
         private static readonly Dictionary<string, uint> MeleeJobClassWeights = new Dictionary<string, uint>()
     {
@@ -125,6 +129,31 @@ namespace ArcanumDrawer
         private static readonly Random Random = new Random();
         private static bool _workerThreadOnHold;
 
+        private unsafe void GcdCheckRun()
+        {
+            while (GcdCheckRun_)
+            {
+                if (ActionManager.Instance()->IsRecastTimerActive(ActionType.Spell, 3599)){
+                    // Is Casting
+                    var GcdRecastTime = ActionManager.Instance()->GetRecastTime(ActionType.Spell, 3599);
+                    var GcdRecastElasped = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                    if (GcdRecastTime > 0 && (GcdRecastElasped > GcdRecastTime / 3))
+                    {
+                        this.GcdState_ = GCDState.POST_ACTION;
+                    } else if (GcdRecastTime > 0 && (GcdRecastElasped > GcdRecastTime * 2 / 3)) {
+                        this.GcdState_ = GCDState.QUEUE_AVAIL;
+                    }
+                    else
+                    {
+                        this.GcdState_ = GCDState.SAFE;
+                    }
+                    
+                }
+                this.GcdState_ = GCDState.IDLE;
+            }
+            return;
+        }
+
         private unsafe void ArcanumAutoPlay()
         {
             if (_workerThreadOnHold) return;
@@ -143,7 +172,7 @@ namespace ArcanumDrawer
             ChatGui.Print("B");
             try
             {
-                var actionManager = ActionManager.Instance();
+                //var actionManager = ActionManager.Instance();
                 var localPlayer = ClientState.LocalPlayer!.ObjectId;
 
                 const uint actionIdDraw = 3590;
@@ -151,30 +180,43 @@ namespace ArcanumDrawer
                 PluginLog.Debug(Name + "Got ActionManager and localPlayer");
                 if (!HasArcanumDrew())
                 {
-                    if (actionManager->GetActionStatus(actionTypeDraw, actionIdDraw, localPlayer, 0, 0) != 0)
+                    if (ActionManager.Instance()->GetActionStatus(actionTypeDraw, actionIdDraw, localPlayer, 0, 0) != 0)
                     {
                         return;
                     }
                     ChatGui.Print("C");
                     // Combust ID - 3599
-                    var gcd = actionManager->GetRecastTime(ActionType.Spell, 3599);
-                    var gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                    var gcd = ActionManager.Instance()->GetRecastTime(ActionType.Spell, 3599);
+                    var gcdElapsed = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
 
                     while ((gcd != 0) && (((gcdElapsed <= 1) || (gcd - gcdElapsed <= 1))))
                     {
                         //ChatGui.Print("GCD: " + gcd.ToString() + " Elapsed: " + gcdElapsed.ToString());
-                        gcdElapsed = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                        gcdElapsed = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
                         //Thread.Sleep(100);
                         Thread.Yield();
                     }
 
                     ChatGui.Print("here");
                     ChatGui.Print("D");
-                    if (!actionManager->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId))
+                    try
+                    {
+                        bool status = ActionManager.Instance()->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId);
+                    }
+                    catch (InvalidOperationException e)
+                    {
+                        ChatGui.Print(e.ToString());
+                        ChatGui.Print("failed");
+                        _workerThreadOnHold = false;
+                        return;
+                    }
+                    /*
+                    if (!ActionManager.Instance()->UseAction(actionTypeDraw, actionIdDraw, ClientState.LocalPlayer!.ObjectId))
                     {
                         ChatGui.Print("failed");
                         return;
                     }
+                    */
                     ChatGui.Print("E");
                     ChatGui.Print("success");
                 }
@@ -183,7 +225,6 @@ namespace ArcanumDrawer
                 ChatGui.Print("F");
                 while (!HasArcanumDrew())
                 {
-                    Thread.Sleep(1000);
                     Thread.Yield();
                 }
                 ChatGui.Print("G");
@@ -201,37 +242,23 @@ namespace ArcanumDrawer
                     };
                 }
                 ChatGui.Print("H");
-                /*
-                foreach (var status in ClientState.LocalPlayer!.StatusList)
-                {
-                    arcanum = status.StatusId switch
-                    {
-                        913 => Arcanum.Balance,
-                        915 => Arcanum.Arrow,
-                        916 => Arcanum.Spear,
-                        914 => Arcanum.Bole,
-                        917 => Arcanum.Ewer,
-                        918 => Arcanum.Spire,
-                        _ => arcanum
-                    };
-                }
-                */
+
                 var target = FindBestCandidate(arcanum);
                 var actionIdPlay = PlayActionId[arcanum];
                 const ActionType actionTypePlay = ActionType.Spell;
 
                 ChatGui.Print($"[Arcanum] {arcanum} -> {target}");
 
-                var gcd2 = actionManager->GetRecastTime(ActionType.Spell, 3599);
-                var gcdElapsed2 = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                var gcd2 = ActionManager.Instance()->GetRecastTime(ActionType.Spell, 3599);
+                var gcdElapsed2 = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
 
                 while ((gcd2 != 0) && (((gcdElapsed2 <= 1) || (gcd2 - gcdElapsed2 <= 1))))
                 {
-                    gcdElapsed2 = actionManager->GetRecastTimeElapsed(ActionType.Spell, 3599);
+                    gcdElapsed2 = ActionManager.Instance()->GetRecastTimeElapsed(ActionType.Spell, 3599);
                     Thread.Yield();
                 }
                 ChatGui.Print("I");
-                actionManager->UseAction(actionTypePlay, actionIdPlay, target.ObjectId);
+                ActionManager.Instance()->UseAction(actionTypePlay, actionIdPlay, target.ObjectId);
                 ChatGui.Print("Z");
             }
             catch (Exception exception)
