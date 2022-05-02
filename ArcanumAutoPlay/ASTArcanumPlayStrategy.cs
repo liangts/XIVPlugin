@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Numerics;
 using System.Linq;
 using Dalamud.Game.ClientState.Objects.Types;
 using Dalamud.Game.ClientState.Party;
@@ -137,6 +138,13 @@ public class AstrologianArcanumPlayStrategy
             return coef;
         }).Aggregate(1.0f, (x, y) => x * y);
 
+    private static float DistanceBetween(PartyMember partyMember)
+    {
+        Vector3 selfPos = Services.ClientState.LocalPlayer!.Position;
+        return Vector3.Distance(selfPos, partyMember.Position);
+
+    }
+
     private static readonly Random Random = new Random();
 
     private static GameObject FindBestCandidate(AstrologianCard arcanum, uint strictLevel = 3)
@@ -158,6 +166,8 @@ public class AstrologianArcanumPlayStrategy
         foreach (var partyMember in Services.PartyList)
         {
             if (partyMember.GameObject == null) continue;
+            if (partyMember.CurrentHP == 0u) continue;
+            if (DistanceBetween(partyMember) > 30.0f) continue;
             var jobAbbr = partyMember.ClassJob.GameData!.Abbreviation.ToString().ToUpper();
 
             if (strictLevel == 3)
@@ -195,7 +205,6 @@ public class AstrologianArcanumPlayStrategy
 
         var bestRank = candidates[0].Value;
         candidates = candidates.FindAll(candidate => candidate.Value == bestRank);
-        Services.ChatGui.Print("Best Rank: " + bestRank.ToString());
 
         var chosenOne = candidates[Random.Next(candidates.Count)].Key;
 
