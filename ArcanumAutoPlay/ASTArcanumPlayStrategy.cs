@@ -10,17 +10,17 @@ namespace ArcanumAutoPlay;
 
 public class AstrologianArcanumPlayStrategy
 {
-    private static readonly Dictionary<string, uint> MeleeJobClassWeights = new Dictionary<string, uint>()
+    private static readonly Dictionary<string, float> MeleeJobClassWeights = new Dictionary<string, float>()
     {
-        { "GLA", 0 }, { "PLD", 2 },
-        { "MRD", 0 }, { "WAR", 2 },
-        { "DRK", 2 },
-        { "GNB", 2 },
-        { "PGL", 1 }, { "MNK", 4 },
-        { "LNC", 1 }, { "DRG", 3 },
-        { "ROG", 1 }, { "NIN", 3 },
-        { "SAM", 4 },
-        { "RPR", 4 }
+        { "GLA", 0.0f }, { "PLD", 0.7f },
+        { "MRD", 0.0f }, { "WAR", 0.7f },
+        { "DRK", 0.7f },
+        { "GNB", 0.7f },
+        { "PGL", 1.0f }, { "MNK", 1.0f },
+        { "LNC", 1.0f }, { "DRG", 1.0f },
+        { "ROG", 1.0f }, { "NIN", 1.0f },
+        { "SAM", 1.0f },
+        { "RPR", 1.0f }
     };
 
     private static bool IsMeleeArcanum(AstrologianCard arcanum) => arcanum switch
@@ -29,18 +29,18 @@ public class AstrologianArcanumPlayStrategy
         _ => false
     };
 
-    private static readonly Dictionary<string, uint> RangeJobClassWeights = new Dictionary<string, uint>()
+    private static readonly Dictionary<string, float> RangeJobClassWeights = new Dictionary<string, float>()
     {
-        { "CNJ", 0 }, { "WHM", 2 },
-        { "ACN", 1 }, { "SCH", 2 },
-        { "AST", 2 },
-        { "SGE", 2 },
-        { "ARC", 1 }, { "BRD", 3 },
-        { "MCH", 3 },
-        { "DNC", 3 },
-        { "THM", 1 }, { "BLM", 4 },
-        { "SMN", 4 },
-        { "RDM", 4 },
+        { "CNJ", 0.0f }, { "WHM", 0.7f },
+        { "ACN", 1.0f }, { "SCH", 0.7f },
+        { "AST", 0.6f },
+        { "SGE", 0.7f },
+        { "ARC", 0.7f }, { "BRD", 0.7f },
+        { "MCH", 0.9f },
+        { "DNC", 0.8f },
+        { "THM", 0.7f }, { "BLM", 1.1f },
+        { "SMN", 1.0f },
+        { "RDM", 1.0f }, {"BLU", 1.0f},
     };
 
     private static bool IsRangeArcanum(AstrologianCard arcanum) => arcanum switch
@@ -51,12 +51,12 @@ public class AstrologianArcanumPlayStrategy
 
     private static readonly Dictionary<AstrologianCard, uint> ArcanumStatuses = new Dictionary<AstrologianCard, uint>()
     {
-        { AstrologianCard.Balance, 829 },
-        { AstrologianCard.Bole, 830 },
-        { AstrologianCard.Spear, 832 },
-        { AstrologianCard.Spire, 834 },
-        { AstrologianCard.Ewer, 833 },
-        { AstrologianCard.Arrow, 831 }
+        { AstrologianCard.Balance, 1882 }, // Melee
+        { AstrologianCard.Bole, 1883 }, // Range
+        { AstrologianCard.Spear, 1885 }, // Melee
+        { AstrologianCard.Spire, 1887 }, // Range
+        { AstrologianCard.Ewer, 1886 }, // Range
+        { AstrologianCard.Arrow, 1884 } // Melee
     };
 
     private static bool HasAstrologianStatus(PartyMember partyMember) =>
@@ -66,7 +66,7 @@ public class AstrologianArcanumPlayStrategy
                 if (status.RemainingTime <= 2.5) return false;
                 return status.StatusId switch
                 {
-                    829 or 830 or 831 or 832 or 833 or 834 => true,
+                    1882 or 1883 or 1884 or 1885 or 1886 or 1887 => true,
                     _ => false
                 };
             })
@@ -83,7 +83,7 @@ public class AstrologianArcanumPlayStrategy
                 if (status.RemainingTime <= 2.5) return false;
                 return status.StatusId switch
                 {
-                    829 or 831 or 832 => true,
+                    1882 or 1884 or 1885 => true,
                     _ => false
                 };
             }).Any(isAstrologianStatus => isAstrologianStatus);
@@ -96,7 +96,7 @@ public class AstrologianArcanumPlayStrategy
                 if (status.RemainingTime <= 2.5) return false;
                 return status.StatusId switch
                 {
-                    830 or 833 or 834 => true,
+                    1883 or 1886 or 1887 => true,
                     _ => false
                 };
             }).Any(isAstrologianStatus => isAstrologianStatus);
@@ -104,6 +104,38 @@ public class AstrologianArcanumPlayStrategy
 
         throw new InvalidOperationException("unknown party member job");
     }
+
+    private static bool HasWeakness(PartyMember partyMember) =>
+        partyMember.Statuses.Select(status =>
+        {
+            if (status.RemainingTime <= 3) return false;
+            if (ConstantsStatusId.StatusId("Ë¥Èõ").Any(id => status.StatusId == id)) return true;
+            if (ConstantsStatusId.StatusId("Weakness").Any(id => status.StatusId == id)) return true;
+            if (ConstantsStatusId.StatusId("Brink of Death").Any(id => status.StatusId == id)) return true;
+            if (ConstantsStatusId.StatusId("Ë¥Èõ£ÛŠ£Ý").Any(id => status.StatusId == id)) return true;
+            return false;
+        }).Any(isWeakNess => isWeakNess);
+
+    private static float ApplyDebuffCoefficient(PartyMember partyMember) =>
+        partyMember.Statuses.Select(status =>
+        {
+            float coef = 1.0f;
+            if (status.RemainingTime <= 3) return coef;
+            //if (ConstantsStatusId.StatusId("Ë¥Èõ").Any(id => status.StatusId == id)) coef = coef * 0.75f;
+            if (ConstantsStatusId.StatusId("Weakness").Any(id => status.StatusId == id)) coef = coef * 0.75f;
+            if (ConstantsStatusId.StatusId("Brink of Death").Any(id => status.StatusId == id)) coef = coef * 0.5f;
+            //if (ConstantsStatusId.StatusId("Ë¥Èõ£ÛŠ£Ý").Any(id => status.StatusId == id)) coef = coef * 0.5f;
+            return coef;
+        }).Aggregate(1.0f, (x, y) => x * y);
+
+    private static float ApplyBuffCoefficient(PartyMember partyMember) =>
+        partyMember.Statuses.Select(status =>
+        {
+            float coef = 1.0f;
+            if (status.RemainingTime <= 3) return coef;
+            if (ConstantsStatusId.StatusId("¥¯¥í©`¥º¥É¥Ý¥¸¥·¥ç¥ó£Û±»£Ý").Any(id => status.StatusId == id)) coef = coef * 1.1f;
+            return coef;
+        }).Aggregate(1.0f, (x, y) => x * y);
 
     private static readonly Random Random = new Random();
 
@@ -115,7 +147,7 @@ public class AstrologianArcanumPlayStrategy
             return Services.ClientState.LocalPlayer!;
         }
 
-        var candidates = new List<KeyValuePair<PartyMember, uint>>(8);
+        var candidates = new List<KeyValuePair<PartyMember, float>>(8);
 
         if (strictLevel == 0)
         {
@@ -125,6 +157,7 @@ public class AstrologianArcanumPlayStrategy
 
         foreach (var partyMember in Services.PartyList)
         {
+            if (partyMember.GameObject == null) continue;
             var jobAbbr = partyMember.ClassJob.GameData!.Abbreviation.ToString().ToUpper();
 
             if (strictLevel == 3)
@@ -132,23 +165,23 @@ public class AstrologianArcanumPlayStrategy
                 /* Ignore players that already have an arcanum */
                 if (HasAstrologianStatus(partyMember)) continue;
             }
-
             if (strictLevel == 2)
             {
                 /* Ignore players that already have an 'correct' arcanum */
                 if (HasCorrectAstrologianStatus(partyMember)) continue;
             }
-
             if (MeleeJobClassWeights.ContainsKey(jobAbbr) && IsMeleeArcanum(arcanum))
             {
-                var rank = MeleeJobClassWeights[jobAbbr];
-                candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
+                float rank = MeleeJobClassWeights[jobAbbr];
+                rank = rank * ApplyBuffCoefficient(partyMember) * ApplyDebuffCoefficient(partyMember);
+                candidates.Add(new KeyValuePair<PartyMember, float>(partyMember, rank));
             }
 
             if (RangeJobClassWeights.ContainsKey(jobAbbr) && IsRangeArcanum(arcanum))
             {
-                var rank = RangeJobClassWeights[jobAbbr];
-                candidates.Add(new KeyValuePair<PartyMember, uint>(partyMember, rank));
+                float rank = RangeJobClassWeights[jobAbbr];
+                rank = rank * ApplyBuffCoefficient(partyMember) * ApplyDebuffCoefficient(partyMember);
+                candidates.Add(new KeyValuePair<PartyMember, float>(partyMember, rank));
             }
         }
 
@@ -162,6 +195,7 @@ public class AstrologianArcanumPlayStrategy
 
         var bestRank = candidates[0].Value;
         candidates = candidates.FindAll(candidate => candidate.Value == bestRank);
+        Services.ChatGui.Print("Best Rank: " + bestRank.ToString());
 
         var chosenOne = candidates[Random.Next(candidates.Count)].Key;
 
