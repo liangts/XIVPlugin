@@ -1,7 +1,9 @@
 ﻿using System;
+using System.Threading;
 using Dalamud.Hooking;
 using Dalamud.IoC;
 using Dalamud.Plugin;
+using Dalamud.Game.Command;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.Game.Gauge;
 
@@ -11,6 +13,12 @@ public unsafe class Plugin : IDalamudPlugin
 {
     public string Name => "ArcanumAutoPlay";
 
+    private Thread auto_play_thread = null;
+
+    private static Thread? auto_play_thread_static = null;
+
+    private CommandManager commandManager = null;
+
     private delegate byte UseActionDelegate(ActionManager* actionManager, ActionType actionType, uint actionId,
         long targetId, uint a4, uint a5, uint a6, void* a7);
 
@@ -19,7 +27,14 @@ public unsafe class Plugin : IDalamudPlugin
     private static byte UseActionDetour(ActionManager* actionManager, ActionType actionType, uint actionId,
         long targetId, uint a4, uint a5, uint a6, void* a7)
     {
-        if (actionId != 17055)
+
+        if (actionId == ConstantsActionId.ActionId("AST_Draw_Arcanum"))
+        {
+            HookArcanumAutoPlay();
+            return UseActionHook.Original(actionManager, actionType, actionId, targetId, a4, a5, a6, a7);
+        }
+
+        if (actionId != ConstantsActionId.ActionId("AST_Play_Arcanum"))
         {
             return UseActionHook.Original(actionManager, actionType, actionId, targetId, a4, a5, a6, a7);
         }
@@ -38,7 +53,7 @@ public unsafe class Plugin : IDalamudPlugin
         return UseActionHook.Original(actionManager, actionType, actionId, target.ObjectId, a4, a5, a6, a7);
     }
 
-    public Plugin([RequiredVersion("1.0")] DalamudPluginInterface pluginInterface)
+    public Plugin([RequiredVersion("1.0")] DalamudPluginInterface pluginInterface, CommandManager commandManager)
     {
         pluginInterface.Create<Services>();
         pluginInterface.UiBuilder.Draw += () => { };
@@ -46,6 +61,50 @@ public unsafe class Plugin : IDalamudPlugin
 
         UseActionHook = new Hook<UseActionDelegate>((IntPtr)ActionManager.fpUseAction, UseActionDetour);
         UseActionHook.Enable();
+
+        this.commandManager = commandManager;
+        this.commandManager.AddHandler("/parcanumautoplay", new CommandInfo(OnCommandArcanumAutoPlay)
+        {
+            HelpMessage = "Dummy Help Message"
+        });
+    }
+
+    private void OnCommandArcanumAutoPlay(string command, string args)
+    {
+        return;
+        if (auto_play_thread == null)
+        {
+            AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = false;
+            AutoPlayArcanum.conditionCheckStopFlag = false;
+            auto_play_thread = new Thread(AutoPlayArcanum.AutoPlayAracnumOnNextGcd);
+            auto_play_thread.Start();
+        }
+        else
+        {
+            AutoPlayArcanum.conditionCheckStopFlag = true;
+            AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = true;
+            //auto_play_thread.Abort();
+            auto_play_thread = null;
+        }
+
+    }
+
+    private static void HookArcanumAutoPlay()
+    {
+        if (auto_play_thread_static == null)
+        {
+            AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = false;
+            AutoPlayArcanum.conditionCheckStopFlag = false;
+            auto_play_thread_static = new Thread(AutoPlayArcanum.AutoPlayAracnumOnNextGcd);
+            auto_play_thread_static.Start();
+        }
+        else
+        {
+            AutoPlayArcanum.conditionCheckStopFlag = false;
+            AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = false;
+            //auto_play_thread_static.Abort();
+            auto_play_thread_static = null;
+        }
     }
 
     public void Dispose()
@@ -54,5 +113,8 @@ public unsafe class Plugin : IDalamudPlugin
         {
             UseActionHook.Disable();
         }
+        AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = true;
+        auto_play_thread_static = null;
+        this.commandManager.RemoveHandler("/parcanumautoplay");
     }
 }
