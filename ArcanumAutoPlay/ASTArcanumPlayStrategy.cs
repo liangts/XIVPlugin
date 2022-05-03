@@ -149,8 +149,9 @@ public class AstrologianArcanumPlayStrategy
 
     private static GameObject FindBestCandidate(AstrologianCard arcanum, uint strictLevel = 3)
     {
+
         if (Services.PartyList.Length == 0)
-        {
+        {   
             /* Solo Party */
             return Services.ClientState.LocalPlayer!;
         }
@@ -165,7 +166,7 @@ public class AstrologianArcanumPlayStrategy
 
         foreach (var partyMember in Services.PartyList)
         {
-            if (partyMember.GameObject == null) continue;
+            if (partyMember == null || partyMember.GameObject == null) continue;
             if (partyMember.CurrentHP == 0u) continue;
             if (DistanceBetween(partyMember) > 30.0f) continue;
             var jobAbbr = partyMember.ClassJob.GameData!.Abbreviation.ToString().ToUpper();

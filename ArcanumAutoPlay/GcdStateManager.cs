@@ -21,7 +21,7 @@ public class GcdStateManager
 
     private unsafe void GcdCheckRun()
     {
-        Services.ChatGui.Print("Check Action: " + ConstantsActionId.ActionId("Malefic IV").ToString());
+        //Services.ChatGui.Print("Check Action: " + ConstantsActionId.ActionId("Malefic IV").ToString());
 
         while (GcdCheckRun_)
         {

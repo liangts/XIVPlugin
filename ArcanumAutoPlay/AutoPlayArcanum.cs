@@ -32,7 +32,7 @@ public static class AutoPlayArcanum
     };
     public static unsafe void AutoPlayAracnumOnNextGcd()
     {
-        Services.ChatGui.Print("[AutoPlayAracnumOnNextGcd] Start");
+        //Services.ChatGui.Print("[AutoPlayAracnumOnNextGcd] Start");
         if (!gcd_state_manager.IsGcdCheckRunning())
         {
             gcd_state_manager.GcdCheckStart();
@@ -43,7 +43,7 @@ public static class AutoPlayArcanum
         {
             while (!AutoPlayAracnumOnNextGcdStopFlag && (!(isCardAvailable && isGcdSafeToPlay)))
             {
-                Thread.Yield();
+                Thread.Sleep(150);
             }
             PlayAracnum();
             isCardAvailable = false;
@@ -51,17 +51,30 @@ public static class AutoPlayArcanum
         }
         gcd_state_manager.GcdCheckStop();
         //conditionCheckStopFlag = true;
-        Services.ChatGui.Print("[AutoPlayAracnumOnNextGcd] End");
+        //Services.ChatGui.Print("[AutoPlayAracnumOnNextGcd] End");
     }
 
     public static unsafe void PlayConditionCheck()
     {
-        Services.ChatGui.Print("[PlayConditionCheck] Start");
+        //Services.ChatGui.Print("[PlayConditionCheck] Start");
         while (!conditionCheckStopFlag)
         {
-            if (GetPlayAracnumCardId(JobGaugeManager.Instance()->Astrologian.CurrentCard) == 0)
+            if ((JobGaugeManager.Instance()->Astrologian.CurrentCard == AstrologianCard.None) && GetPlayAracnumCardId(JobGaugeManager.Instance()->Astrologian.CurrentCard) == 0)
             {
+                //Services.ChatGui.Print("isFalse: " + JobGaugeManager.Instance()->Astrologian.CurrentCard.ToString());
                 isCardAvailable = false;
+            }
+            else if ((int)JobGaugeManager.Instance()->Astrologian.CurrentCard > (int)AstrologianCard.Lord &&
+                     (int)JobGaugeManager.Instance()->Astrologian.CurrentCard < (int)AstrologianCard.Lady)
+            {
+                //Services.ChatGui.Print("Has Lord");
+                isCardAvailable = true;
+            }
+            else if ((int)JobGaugeManager.Instance()->Astrologian.CurrentCard > (int)AstrologianCard.Lady &&
+                     (int)JobGaugeManager.Instance()->Astrologian.CurrentCard <= 134) // 134 is Lady + spire
+            {
+                //Services.ChatGui.Print("Has Lady");
+                isCardAvailable = true;
             }
             else
             {
@@ -75,9 +88,9 @@ public static class AutoPlayArcanum
             {
                 isGcdSafeToPlay = false;
             }
-            Thread.Sleep(50);
+            Thread.Sleep(150);
         }
-        Services.ChatGui.Print("[PlayConditionCheck] End");
+        //Services.ChatGui.Print("[PlayConditionCheck] End");
     }
 
     public static unsafe void PlayAracnum()
@@ -85,11 +98,38 @@ public static class AutoPlayArcanum
         if (AutoPlayArcanum.isCardAvailable)
         {
             var strategy = new AstrologianArcanumPlayStrategy();
-            var target = strategy.SelectTarget();
+            Dalamud.Game.ClientState.Objects.Types.GameObject target;
+            try
+            {
+                target = strategy.SelectTarget();
+            }
+            catch (System.NullReferenceException e)
+            {
+                Services.ChatGui.Print("[Arcanum] " + e.ToString());
+                target = Services.ClientState.LocalPlayer!;
+            }
+            if (JobGaugeManager.Instance()->Astrologian.CurrentCard > AstrologianCard.Lord)
+            {
+                
+                AstrologianCard actual = (AstrologianCard)((int)JobGaugeManager.Instance()->Astrologian.CurrentCard - AstrologianCard.Lord);
+                Services.ChatGui.Print($"[Arcanum] {actual} -> {target}");
+                ActionManager.Instance()->UseAction(ActionType.Spell, GetPlayAracnumCardId(actual), target.ObjectId);
+            }
+            else if (JobGaugeManager.Instance()->Astrologian.CurrentCard > AstrologianCard.Lady)
+            {
+                
+                AstrologianCard actual = (AstrologianCard)((int)JobGaugeManager.Instance()->Astrologian.CurrentCard - AstrologianCard.Lady);
+                Services.ChatGui.Print($"[Arcanum] {actual} -> {target}");
+                ActionManager.Instance()->UseAction(ActionType.Spell, GetPlayAracnumCardId(actual), target.ObjectId);
+            }
+            else
+            {
 
-            ActionManager.Instance()->UseAction(ActionType.Spell, GetPlayAracnumCardId(JobGaugeManager.Instance()->Astrologian.CurrentCard), target.ObjectId);
-            AutoPlayAracnumOnNextGcdStopFlag = true;
-            conditionCheckStopFlag = true;
+                Services.ChatGui.Print($"[Arcanum] {JobGaugeManager.Instance()->Astrologian.CurrentCard} -> {target}");
+                ActionManager.Instance()->UseAction(ActionType.Spell, GetPlayAracnumCardId(JobGaugeManager.Instance()->Astrologian.CurrentCard), target.ObjectId);
+            }
+                AutoPlayAracnumOnNextGcdStopFlag = true;
+                conditionCheckStopFlag = true;
 
         }
     }

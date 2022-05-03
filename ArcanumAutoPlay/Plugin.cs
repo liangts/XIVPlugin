@@ -41,6 +41,7 @@ public unsafe class Plugin : IDalamudPlugin
 
         if (JobGaugeManager.Instance()->Astrologian.CurrentCard is
             AstrologianCard.None or AstrologianCard.Lady or AstrologianCard.Lord)
+
         {
             Services.ChatGui.Print($"[[Arcanum] Direct Pass");
             return UseActionHook.Original(actionManager, actionType, actionId, targetId, a4, a5, a6, a7);
