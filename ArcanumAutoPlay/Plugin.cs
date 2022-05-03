@@ -97,13 +97,22 @@ public unsafe class Plugin : IDalamudPlugin
             AutoPlayArcanum.conditionCheckStopFlag = false;
             auto_play_thread_static = new Thread(AutoPlayArcanum.AutoPlayAracnumOnNextGcd);
             auto_play_thread_static.Start();
+            return;
         }
-        else
+        if (auto_play_thread_static != null && AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag == false)
         {
+            // A thread already in running.
+            return;
+        }
+        if (auto_play_thread_static != null && AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag == true)
+        {
+            // A finished thread.
             AutoPlayArcanum.conditionCheckStopFlag = false;
             AutoPlayArcanum.AutoPlayAracnumOnNextGcdStopFlag = false;
             //auto_play_thread_static.Abort();
-            auto_play_thread_static = null;
+            auto_play_thread_static = new Thread(AutoPlayArcanum.AutoPlayAracnumOnNextGcd);
+            auto_play_thread_static.Start();
+            return;
         }
     }
 
